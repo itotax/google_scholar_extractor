@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import urllib.parse
+import sys
 
 def fetch_page(url):
     """
@@ -24,10 +25,12 @@ def parse_papers(page_content):
     Parse the fetched page content for paper details.
     """
     soup = BeautifulSoup(page_content, "html.parser")
+
+    
     papers_list = []
 
     for row in soup.find_all("tr", class_="gsc_a_tr"):
-        print(row)
+        #        print(row)
         try:
             title = row.find("a", class_="gsc_a_at").text
             authors = row.find("div", class_="gs_gray").text
@@ -65,6 +68,17 @@ def fetch_papers(scholar_id):
     start_index = 0
     page_size = 100  # Adjust based on how many items per page you want to process
 
+    # get the author name
+    url = f"{base_url}/citations?user={scholar_id}"
+    page_content = fetch_page(url)
+    if page_content:
+        soup = BeautifulSoup(page_content, "html.parser")
+        author_name = soup.find("meta",property="og:title")['content']
+        print("Target Author: ", author_name)
+    else:
+        print("Failed to fetch author name.")
+        return pd.DataFrame()
+
     while True:
         url = f"{base_url}/citations?user={scholar_id}&hl=en&cstart={start_index}&pagesize={page_size}"
         page_content = fetch_page(url)
@@ -80,14 +94,22 @@ def fetch_papers(scholar_id):
         time.sleep(5)  # Sleep to avoid hitting rate limits
 
     papers_df = pd.DataFrame(papers_list)
-    return papers_df
+
+    return (author_name,papers_df)
 
 # Example usage
-scholar_id = 'eq7P_4YAAAAJ'
-papers_df = fetch_papers(scholar_id)
+scholar_id = sys.argv[1]
+# Usage:
+#   python google_scholar_extractor.py 'YOUR SCHOLAR ID'
+# NOTE:
+#   To get your scholar id, go to your google scholar profile and copy the id from the url 
+#
+# or you can just assign your name below
+#scholar_id = 'INPUT YOURNAME'
+(author_name,papers_df) = fetch_papers(scholar_id)
 
 if not papers_df.empty:
-    excel_file_path = 'google_scholar_papers_list.xlsx'
+    excel_file_path = 'google_scholar_papers_list('+author_name+').xlsx'
     papers_df.to_excel(excel_file_path, index=False, engine='openpyxl')  # Ensure you have 'openpyxl' installed
     print(f"Papers list saved to {excel_file_path}")
 else:
